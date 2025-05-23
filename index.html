@@ -2,27 +2,70 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>クリニックデータ表示</title>
+  <title>アクセス集計 (365dentist)</title>
+
+  <!-- Google Fonts 追加 -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+
   <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      background-color: #f9f9fb;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+    }
+
+    #name h1 {
+      font-size: 1.8em;
+      color: #2c3e50;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    #result p {
+      text-align: center;
+      color: #888;
+      font-size: 1.1em;
+    }
+
     table {
       border-collapse: collapse;
       width: 100%;
-      margin-top: 1em;
+      max-width: 900px;
+      margin: 0 auto 30px auto;
+      background-color: #fff;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+      border: 1px solid #ccc; /* 外枠 */
     }
+
     th, td {
+      padding: 12px 15px;
+      text-align: center;
       border: 1px solid #ccc;
-      padding: 8px;
     }
+
     th {
-      background-color: #f0f0f0;
+      background-color: #5a5c5e;
+      color: #fff;
+      font-weight: bold;
+    }
+
+    tr:hover {
+      background-color: #e0f7fa;
+    }
+
+    @media (max-width: 600px) {
+      table, th, td {
+        font-size: 0.9em;
+      }
     }
   </style>
 </head>
+
 <body>
-
-  <h1 id="clinic-title">クリニック名</h1>
-
-  <div id="result"></div>
+  <div id="name"><h1>クリニック名（未指定）</h1></div>
+  <div id="result"><p>※URLにidが指定されていません</p></div>
 
   <script>
     // URLパラメータからclinic名を取得
@@ -32,54 +75,73 @@
     }
 
     async function fetchClinicData() {
-  const clinic = getQueryParam("clinic");
-  if (!clinic) {
-    document.getElementById('result').innerHTML = "<p>※クリニック名が指定されていません。</p>";
-    return;
-  }
+      
+      const id = getQueryParam("id");
 
-  document.getElementById("clinic-title").innerText = clinic;
+      if (!id) {
+          return;
+      }
 
-  // 読み込み中のメッセージを表示
-  document.getElementById('result').innerHTML = "<p>データを読み込んでいます...</p>";
+      // 読み込み中のメッセージを表示
+      const API_URL = 'https://script.google.com/macros/s/AKfycbxKSN_n55kOxUnZTXNASr-_T0OWSsvhaPwz_9ONR-kFrgNgppTOgQhW8-WOKjyz6CLhpA/exec';
+      const URL_1   = API_URL + '?mode=name&id='+id; 
+      const URL_2   = API_URL + '?mode=data&id='+id;
 
-  const apiUrl = 'https://script.google.com/macros/s/AKfycbxKSN_n55kOxUnZTXNASr-_T0OWSsvhaPwz_9ONR-kFrgNgppTOgQhW8-WOKjyz6CLhpA/exec?clinic=' + encodeURIComponent(clinic); 
+      document.getElementById('name').innerHTML = "<p style='text-align:center;'>クリニックの情報を読み込んでいます...</p>";
+      document.getElementById('result').innerHTML = "";
 
-  try {
-    const response = await fetch(apiUrl);
-    const data = await response.json();
+      try {
+        const response1 = await fetch(URL_1);
+        const data1     = await response1.text();
+        
+        if (data1.length === 0) {
+          document.getElementById('name').innerHTML = "<p>該当データなし</p>";
+        } else {
+          document.getElementById('name').innerHTML = `<h1>${data1}</h1>`;
+        }
+      } catch(error) {
+        document.getElementById('name').innerHTML = "<p>データ取得失敗</p>";
+      }
 
-    if (data.length === 0) {
-      document.getElementById('result').innerHTML = "<p>該当するデータがありません。</p>";
-      return;
+      document.getElementById('result').innerHTML = "<p>アクセス集計データを読み込んでいます...</p>";
+
+      try {
+        const response2 = await fetch(URL_2);
+        const data2     = await response2.json();
+
+        if (data2.length === 0) {
+          document.getElementById('result').innerHTML = "<p>該当データなし</p>";
+          return;
+        }
+
+        // 表作成（IDを除く）
+        let html = '<table><tr>';
+        
+        const excludeKeys = ["ID", "クリニック名"];
+        const keys = Object.keys(data2[0]).filter(key => !excludeKeys.includes(key));
+        
+        keys.forEach(key => {
+          html += `<th>${key}</th>`;
+        });
+
+        html += '</tr>';
+
+        data2.forEach(row => {
+          html += '<tr>';
+          keys.forEach(key => {
+            html += `<td>${row[key]}</td>`;
+          });
+          html += '</tr>';
+        });
+
+        html += '</table>';
+        
+        document.getElementById('result').innerHTML = html;
+
+      } catch (error) {
+        document.getElementById('result').innerHTML = "<p>データ取得失敗</p>";
+      }
     }
-
-    // 表作成（クリニック名を除く）
-    let html = '<table><tr>';
-    const keys = Object.keys(data[0]).filter(key => key !== "クリニック名");
-
-    keys.forEach(key => {
-      html += `<th>${key}</th>`;
-    });
-    html += '</tr>';
-
-    data.forEach(row => {
-      html += '<tr>';
-      keys.forEach(key => {
-        html += `<td>${row[key]}</td>`;
-      });
-      html += '</tr>';
-    });
-    html += '</table>';
-
-    // 表示を更新
-    document.getElementById('result').innerHTML = html;
-
-  } catch (error) {
-    console.error("データ取得エラー:", error);
-    document.getElementById('result').innerHTML = "<p>データの取得に失敗しました。</p>";
-  }
-}
     // ページ読み込み時に実行
     window.onload = fetchClinicData;
   </script>
